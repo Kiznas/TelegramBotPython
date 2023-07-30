@@ -1,8 +1,6 @@
 from background import keep_alive
 import logging
 import telegram
-import pip
-pip.main(['install', 'pytelegrambotapi'])
 from enum import Enum
 from datetime import datetime
 from dataclasses import dataclass
