@@ -1,9 +1,6 @@
 from flask import Flask
 from flask import request
 from threading import Thread
-import time
-import requests
-
 
 app = Flask('')
 

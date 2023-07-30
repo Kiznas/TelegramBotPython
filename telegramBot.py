@@ -1,5 +1,8 @@
+from background import keep_alive
 import logging
 import telegram
+import pip
+pip.main(['install', 'pytelegrambotapi'])
 from enum import Enum
 from datetime import datetime
 from dataclasses import dataclass
@@ -338,6 +341,7 @@ async def try_delete_message(bot : telegram.Bot, chat_id, message_id):
     except Exception as ex:
         logging.error(f"Error deleting message: {ex}")
 
+keep_alive()
 if __name__ == '__main__':
     # Set up logging
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
