@@ -146,11 +146,8 @@ async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin:
         return
 
-    if user_id in userData:
-        user_data = userData[user_id]
-        if user_data.ChatId == chat_id and user_data.MessageId in LastEvent:
-            last_event_data = LastEvent[user_data.MessageId]
-            context.bot.delete_message(chat_id=last_event_data.ChatId, message_id=last_event_data.MessageId)
+    last_event_data = LastEvent[chat_id]
+    await context.bot.delete_message(chat_id=last_event_data.ChatId, message_id=last_event_data.MessageId)
             
     await try_delete_message(update._bot, update.message.chat_id, update.message.message_id)
 
