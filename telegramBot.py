@@ -1,4 +1,3 @@
-from background import keep_alive
 import logging
 import telegram
 from enum import Enum
@@ -225,18 +224,22 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             user_data.CurrentMod = CurrentMode.Card
         elif user_response == "Yes" or user_response == "End Edit":
             
-            header_text = user_data.Header if user_data.Header is not None else ""
-            description_text = user_data.Description if user_data.Description is not None else ""
-            card_data = user_data.CardData if user_data.CardData is not None else None
+            
             
             if(user_response == "Yes"):
+                header_text = user_data.Header if user_data.Header is not None else ""
+                description_text = user_data.Description if user_data.Description is not None else ""
+                card_data = user_data.CardData if user_data.CardData is not None else None
                 message_text = await formating_method(header_text, description_text)
                 sent_message = await context.bot.send_message(user_data.ChatId, text=message_text, reply_markup=plus_minus_markup, parse_mode='HTML')
                 last_event_data = LastEventData(user_data.ChatId, sent_message.message_id, header_text, description_text, card_data)
             
             elif(user_response == "End Edit"):
-                message_text = await format_for_editing(user_data, header_text, description_text, card_data, response_text = None)
                 last_event = LastEvent[user_data.ChatId]
+                header_text = user_data.Header if user_data.Header is not None else last_event.Header
+                description_text = user_data.Description if user_data.Description is not None else last_event.Description
+                card_data = user_data.CardData if user_data.CardData is not None else None
+                message_text = await format_for_editing(user_data, header_text, description_text, card_data, response_text = None)
                 edited_message = await context.bot.edit_message_text(message_text, last_event.ChatId, last_event.MessageId, reply_markup=plus_minus_markup, parse_mode='HTML')
                 last_event_data = LastEventData(user_data.ChatId, edited_message.message_id, header_text, description_text, card_data)
             
@@ -269,12 +272,15 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             response_text = 'no'
         
         last_event_data: Type[LastEventData] = LastEvent[query.message.chat.id]
-        await context.bot.edit_message_text(
+        try:
+            await context.bot.edit_message_text(
                 chat_id=last_event_data.ChatId,
                 message_id=last_event_data.MessageId,
                 text=await format_for_editing(some_user_data, last_event_data.Header, last_event_data.Description, last_event_data.CardData, response_text),
                 parse_mode='HTML',
                 reply_markup=plus_minus_markup,)
+        except:
+            print("Cant change message")
 
 # Function to handle first formating
 async def formating_method(header_text, description_text):
@@ -319,11 +325,10 @@ async def format_for_editing(user_data: UserData, header_text: str, description_
             final_text_list_responses += f"{counter}. {item}\n"
             counter += 1
 
-    print('Final respond text = ' + final_text_list_responses)
     separator_line = "──────────────────────────"
     starting_time_formatted = RespondsOnEvent[tuple_key].StartingTime.strftime("%d %B %H:%M")
 
-    if description_text and card_data.CardNumber and card_data.MoneyAmount:
+    if description_text and card_data and card_data.CardNumber and card_data.MoneyAmount:
         return f"<b>{header_text}</b>\n{separator_line}\n{description_text}\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>{len(RespondsOnEvent[tuple_key].Responds)}</strong> людей\nПодію створено - {starting_time_formatted}\n[Номер карти: <code>{card_data.CardNumber}</code> Сумма: <code>{card_data.MoneyAmount}</code>₴]"
     elif description_text:
         return f"<b>{header_text}</b>\n{separator_line}\n{description_text}\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>{len(RespondsOnEvent[tuple_key].Responds)}</strong> людей\nПодію створено - {starting_time_formatted}"
@@ -339,7 +344,7 @@ async def try_delete_message(bot : telegram.Bot, chat_id, message_id):
     except Exception as ex:
         logging.error(f"Error deleting message: {ex}")
 
-keep_alive()
+
 if __name__ == '__main__':
     # Set up logging
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
