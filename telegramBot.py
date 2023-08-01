@@ -285,7 +285,6 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             if user_data.IsEditing == False:
                 await context.bot.send_message(chat_id=chat_id, text="Ви відмінили створення події")
                 await try_delete_message(update._bot, update.effective_chat.id, update.effective_message.id)
-                userData.pop(user_id)
                 return
             else:
                 await context.bot.send_message(chat_id=chat_id, text="Ви відмінили змінення події")
