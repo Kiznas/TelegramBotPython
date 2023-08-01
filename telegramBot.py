@@ -67,20 +67,28 @@ userData = {}
 LastEvent = {}
 RespondsOnEvent: Dict[Tuple[int, int], 'RespondData'] = {}
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if update.message.chat.type == 'private':
+        await context.bot.send_message(chat_id, text = f"<a href=\"https://shorturl.at/KLOS2\">Інструкція до боту </a>", parse_mode='HTML')
+        return
+
 # Function to handle the /create command
 async def create(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_first_name = update.effective_user.first_name
     user_second_name = update.effective_user.last_name
     chat_id = update.effective_chat.id
+    
+    if update.message.chat.type == 'private':
+        await context.bot.send_message(chat_id, text=f"Події можливо створювати лише в группі, в якій ви хочете, щоб подія була створена. <a href=\"https://shorturl.at/KLOS2\">Інструкція до боту</a>", parse_mode='HTML')
+        return
 
     # Check if the user is an admin in the group or supergroup
     chat_administrators = await context.bot.get_chat_administrators(chat_id)
     is_admin = any(admin.user.id == user_id for admin in chat_administrators)
 
     if not is_admin:
-        return
-    if update.message.chat.type == 'private':
         return
 
     last_event_data = LastEvent.get(chat_id)
@@ -112,13 +120,15 @@ async def edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
 
+    if update.message.chat.type == 'private':
+        await context.bot.send_message(chat_id, "Події можливо створювати лише в группі в котрій ви хочете щоб подія була створена. Для повної інструкції нажміть на іконку цього боту, і на ссилку з інструкцією")
+        return
+
     # Check if the user is an admin in the group or supergroup
     chat_administrators = await context.bot.get_chat_administrators(chat_id)
     is_admin = any(admin.user.id == user_id for admin in chat_administrators)
 
     if not is_admin:
-        return
-    if update.message.chat.type == 'private':
         return
     
     last_event_data = LastEvent.get(chat_id)
@@ -131,7 +141,8 @@ async def edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("Заголовок", callback_data="Header"),
          InlineKeyboardButton("Опис", callback_data="Description")],
         [InlineKeyboardButton("Данні карти", callback_data="Card data")],
-        [InlineKeyboardButton("Завершити зміни", callback_data="End Edit")]
+        [InlineKeyboardButton("✅", callback_data="End Edit"),
+         InlineKeyboardButton("❌", callback_data="No")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -140,6 +151,7 @@ async def edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Store the state for editing
     user_data = UserData(user_id, chat_id, LastEvent[chat_id].MessageId)
     user_data.CurrentMod = "None"  # Set the mode to "None" initially for editing
+    user_data.IsEditing = True
     userData[user_id] = user_data
 
     await try_delete_message(update._bot, update.message.chat_id, update.message.message_id)
@@ -149,13 +161,15 @@ async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
 
+    if update.message.chat.type == 'private':
+        await context.bot.send_message(chat_id, "Події можливо створювати лише в группі в котрій ви хочете щоб подія була створена. Для повної інструкції нажміть на іконку цього боту, і на ссилку з інструкцією")
+        return
+
     # Check if the user is an admin in the group or supergroup
     chat_administrators = await context.bot.get_chat_administrators(chat_id)
     is_admin = any(admin.user.id == user_id for admin in chat_administrators)
 
     if not is_admin:
-        return
-    if update.message.chat.type == 'private':
         return
     
     last_event_data = LastEvent.get(chat_id)
@@ -192,7 +206,7 @@ async def handle_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             elif user_data.CurrentMod == CurrentMode.Header:
                 user_data.Header = message_text
-                await context.bot.send_message(chat_id=chat_id, text="Заголовок збережено")
+                await context.bot.send_message(chat_id=chat_id, text="Заголовок збережено", )
                 user_data.CurrentMod = CurrentMode.NoneMode
 
             elif user_data.CurrentMod == CurrentMode.Description:
@@ -223,6 +237,10 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         if user_data is None:
             return
 
+        query = update.callback_query
+        user_data.UserFirstName= query.from_user.first_name,
+        user_data.UserSecondName = query.from_user.last_name
+
         if user_response == "Header":
             await context.bot.send_message(chat_id=user_id, text="Будь ласка, введіть текст Заголовку:")
             user_data.CurrentMod = CurrentMode.Header
@@ -238,7 +256,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                 header_text = user_data.Header if user_data.Header is not None else ""
                 description_text = user_data.Description if user_data.Description is not None else ""
                 card_data = user_data.CardData if user_data.CardData is not None else None
-                message_text = await formating_method(header_text, description_text)
+                message_text = await format_for_editing(user_data, header_text, description_text, card_data, response_text= None)
                 sent_message = await context.bot.send_message(user_data.ChatId, text=message_text, reply_markup=plus_minus_markup, parse_mode='HTML')
                 last_event = LastEvent.get(user_data.ChatId)
                 if last_event is not None:
@@ -251,7 +269,10 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                 description_text = user_data.Description if user_data.Description is not None else last_event.Description
                 card_data = user_data.CardData if user_data.CardData is not None else last_event.CardData
                 message_text = await format_for_editing(user_data, header_text, description_text, card_data, response_text = None)
-                edited_message = await context.bot.edit_message_text(message_text, last_event.ChatId, last_event.MessageId, reply_markup=plus_minus_markup, parse_mode='HTML')
+                try:
+                    edited_message = await context.bot.edit_message_text(message_text, last_event.ChatId, last_event.MessageId, reply_markup=plus_minus_markup, parse_mode='HTML')
+                except:
+                    print("message cant be sent")
                 last_event_data = LastEventData(user_data.ChatId, edited_message.message_id, header_text, description_text, card_data)
 
             LastEvent[user_data.ChatId] = last_event_data
@@ -261,10 +282,15 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
             await try_delete_message(update._bot, update.effective_chat.id, update.effective_message.id)
         elif user_response == "No":
-            await context.bot.send_message(chat_id=chat_id, text="Ви відмінили створення події")
-            await try_delete_message(update._bot, update.effective_chat.id, update.effective_message.id)
-            userData.pop(user_id)
-            return
+            if user_data.IsEditing == False:
+                await context.bot.send_message(chat_id=chat_id, text="Ви відмінили створення події")
+                await try_delete_message(update._bot, update.effective_chat.id, update.effective_message.id)
+                userData.pop(user_id)
+                return
+            else:
+                await context.bot.send_message(chat_id=chat_id, text="Ви відмінили змінення події")
+                await try_delete_message(update._bot, update.effective_chat.id, update.effective_message.id)
+                return
 
     elif update.callback_query.message.chat.type == Filters.group.name or update.callback_query.message.chat.type == Filters.supergroup.name:
         query = update.callback_query
@@ -293,16 +319,6 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                 reply_markup=plus_minus_markup,)
         except:
             print("Cant change message")
-
-# Function to handle first formating
-async def formating_method(header_text, description_text):
-
-    separator_line = "──────────────────────────"
-
-    if description_text is not None:
-        return f"<b>{header_text}</b>\n{separator_line}\n{description_text}\n{separator_line}\nВсього: <strong> X </strong> людей\nПодію створено - X"
-    else:
-        return f"<b>{header_text}</b>\n{separator_line}\nВсього: <strong> X </strong> людей \nПодію створено - X"
 
 # Function to handle formating
 async def format_for_editing(user_data: UserData, header_text: str, description_text: str, card_data: CardData, response_text: str) -> str:
@@ -340,17 +356,28 @@ async def format_for_editing(user_data: UserData, header_text: str, description_
             final_text_list_responses += f"{counter}. {item}\n"
             counter += 1
 
-    separator_line = "──────────────────────────"
-    starting_time_formatted = RespondsOnEvent[tuple_key].StartingTime
+    if tuple_key is not None and tuple_key in RespondsOnEvent:
+        separator_line = "──────────────────────────"
+        starting_time_formatted = RespondsOnEvent[tuple_key].StartingTime
 
-    if description_text and card_data and card_data.CardNumber and card_data.MoneyAmount:
-        return f"<b>{header_text}</b>\n{separator_line}\n{description_text}\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>{len(RespondsOnEvent[tuple_key].Responds)}</strong> людей\nПодію створено - {starting_time_formatted}\n[Номер карти: <code>{card_data.CardNumber}</code> Сумма: <code>{card_data.MoneyAmount}</code>₴]"
-    elif description_text:
-        return f"<b>{header_text}</b>\n{separator_line}\n{description_text}\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>{len(RespondsOnEvent[tuple_key].Responds)}</strong> людей\nПодію створено - {starting_time_formatted}"
-    elif card_data and card_data.CardNumber and card_data.MoneyAmount:
-        return f"<b>{header_text}</b>\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>{len(RespondsOnEvent[tuple_key].Responds)}</strong> людей\nПодію створено - {starting_time_formatted}\n[Номер карти: <code>{card_data.CardNumber}</code> Сумма: <code>{card_data.MoneyAmount}</code>₴]"
+        if description_text and card_data and card_data.CardNumber and card_data.MoneyAmount:
+            return f"<b>{header_text}</b>\n{separator_line}\n{description_text}\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>{len(RespondsOnEvent[tuple_key].Responds)}</strong> людей\nПодію створено - {starting_time_formatted}\n[Номер карти: <code>{card_data.CardNumber}</code> Сумма: <code>{card_data.MoneyAmount}</code>₴]"
+        elif description_text:
+            return f"<b>{header_text}</b>\n{separator_line}\n{description_text}\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>{len(RespondsOnEvent[tuple_key].Responds)}</strong> людей\nПодію створено - {starting_time_formatted}"
+        elif card_data and card_data.CardNumber and card_data.MoneyAmount:
+            return f"<b>{header_text}</b>\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>{len(RespondsOnEvent[tuple_key].Responds)}</strong> людей\nПодію створено - {starting_time_formatted}\n[Номер карти: <code>{card_data.CardNumber}</code> Сумма: <code>{card_data.MoneyAmount}</code>₴]"
+        else:
+            return f"<b>{header_text}</b>\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>{len(RespondsOnEvent[tuple_key].Responds)}</strong> людей\nПодію створено - {starting_time_formatted}"
     else:
-        return f"<b>{header_text}</b>\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>{len(RespondsOnEvent[tuple_key].Responds)}</strong> людей\nПодію створено - {starting_time_formatted}"
+        separator_line = "──────────────────────────"
+        if description_text and card_data and card_data.CardNumber and card_data.MoneyAmount:
+            return f"<b>{header_text}</b>\n{separator_line}\n{description_text}\n{separator_line}\Всього: <strong>X</strong> людей\nПодію створено - {formatted_date_gmt}\n[Номер карти: <code>{card_data.CardNumber}</code> Сумма: <code>{card_data.MoneyAmount}</code>₴]"
+        elif description_text:
+            return f"<b>{header_text}</b>\n{separator_line}\n{description_text}\n{separator_line}\nВсього: <strong>X</strong> людей\nПодію створено - {formatted_date_gmt}"
+        elif card_data and card_data.CardNumber and card_data.MoneyAmount:
+            return f"<b>{header_text}</b>\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>X</strong> людей\nПодію створено - {formatted_date_gmt}\n[Номер карти: <code>{card_data.CardNumber}</code> Сумма: <code>{card_data.MoneyAmount}</code>₴]"
+        else:
+            return f"<b>{header_text}</b>\n{separator_line}\n{final_text_list_responses}{separator_line}\nВсього: <strong>X</strong> людей\nПодію створено - {formatted_date_gmt}"
 
 # Function to handle deliting messages
 async def try_delete_message(bot : telegram.Bot, chat_id, message_id):
@@ -367,6 +394,7 @@ if __name__ == '__main__':
     application = ApplicationBuilder().token('6439816408:AAEO2FCwGz7lqONQAw5u4gcnBbc_Euv38YE').build()
 
     # Add handlers for commands and messages
+    application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("create", create))
     application.add_handler(CommandHandler("edit", edit))
     application.add_handler(CommandHandler("delete", delete))
