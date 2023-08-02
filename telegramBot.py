@@ -325,7 +325,7 @@ async def format_for_editing(user_data: UserData, header_text: str, description_
     user_mention = f"<a href=\"tg://user?id={user_data.UserId}\">{user_data.UserFirstName} {user_data.UserSecondName if user_data.UserSecondName else ''}</a>"
 
     current_time = datetime.now()
-    gmt_offset = timedelta(hours=1) 
+    gmt_offset = timedelta(hours=3) 
 
     # Add the time difference to the current time to get the GMT time
     gmt_time = current_time + gmt_offset
